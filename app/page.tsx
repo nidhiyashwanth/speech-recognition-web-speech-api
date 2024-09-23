@@ -7,12 +7,16 @@ export default function Home() {
   const [isCalibrating, setIsCalibrating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [threshold, setThreshold] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(20);
   const [warning, setWarning] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlobs, setAudioBlobs] = useState<Blob[]>([]);
   const [audioUrls, setAudioUrls] = useState<string[]>([]);
+
+  const [calibrationTranscript, setCalibrationTranscript] = useState("");
+  const [calibrationComplete, setCalibrationComplete] = useState(false);
+  const [matchedWords, setMatchedWords] = useState<Set<string>>(new Set());
+  const [timeLeft, setTimeLeft] = useState(20);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -21,12 +25,12 @@ export default function Home() {
   const recognitionRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const readingPrompt = `Please read the following text aloud:
-    "The quick brown fox jumps over the lazy dog. 
-    Pack my box with five dozen liquor jugs. 
-    How vexingly quick daft zebras jump! 
-    The five boxing wizards jump quickly. 
-    Sphinx of black quartz, judge my vow."`;
+  const readingPrompt = `this sentence is to test your microphone and to calibrate your device for the best possible experience`;
+
+  const requiredWords = readingPrompt
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 3);
 
   useEffect(() => {
     return () => {
@@ -44,6 +48,8 @@ export default function Home() {
     source.connect(analyserRef.current);
 
     setIsCalibrating(true);
+    setMatchedWords(new Set());
+    // setTimerStarted(false);
     setTimeLeft(20);
 
     let maxVolume = 0;
@@ -55,19 +61,97 @@ export default function Home() {
       maxVolume = Math.max(maxVolume, volume);
     };
 
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prevTime) => {
-        if (prevTime <= 1) {
-          clearInterval(timerRef.current!);
-          setThreshold(maxVolume * 0.8);
-          setIsCalibrating(false);
-          startListening(stream);
-          return 0;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join(" ");
+      setCalibrationTranscript(transcript);
+
+      const spokenWords = new Set(
+        transcript
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((word) => word.length > 3)
+      );
+      const newMatchedWords = new Set(matchedWords);
+      requiredWords.forEach((word) => {
+        if (spokenWords.has(word)) {
+          newMatchedWords.add(word);
         }
-        checkVolume();
-        return prevTime - 1;
       });
+      setMatchedWords(newMatchedWords);
+
+      const allWordsSpoken = requiredWords.every((word) =>
+        newMatchedWords.has(word)
+      );
+
+      if (allWordsSpoken) {
+        completeCalibration(recognition, maxVolume);
+      }
+
+      checkVolume();
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+
+    // Start the timer when calibration starts
+    startTimer();
+  };
+
+  const startTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    const startTime = Date.now();
+    timerRef.current = setInterval(() => {
+      const elapsedSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const newTimeLeft = Math.max(20 - elapsedSeconds, 0);
+      setTimeLeft(newTimeLeft);
+      if (newTimeLeft === 0) {
+        clearInterval(timerRef.current!);
+        checkCalibrationCompletion();
+      }
     }, 1000);
+  };
+
+  const checkCalibrationCompletion = () => {
+    const matchPercentage = (matchedWords.size / requiredWords.length) * 100;
+    if (matchPercentage >= 60) {
+      completeCalibration(
+        recognitionRef.current,
+        analyserRef.current!.maxDecibels
+      );
+    } else {
+      restartCalibration();
+    }
+  };
+
+  const restartCalibration = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    setIsCalibrating(false);
+    setCalibrationComplete(false);
+    setTimeout(() => {
+      startCalibration();
+    }, 1000); // Short delay before restarting
+  };
+
+  const completeCalibration = (recognition: any, maxVolume: number) => {
+    recognition.stop();
+    if (timerRef.current) clearInterval(timerRef.current);
+    setThreshold(maxVolume * 0.8);
+    setIsCalibrating(false);
+    setCalibrationComplete(true);
+    startListening();
   };
 
   const startListening = () => {
@@ -108,7 +192,7 @@ export default function Home() {
   };
 
   const startRecording = () => {
-    if (isRecording) return; // Prevent starting a new recording if one is already in progress
+    if (isRecording) return;
 
     setIsRecording(true);
     const mediaRecorder = new MediaRecorder(streamRef.current!);
@@ -123,7 +207,6 @@ export default function Home() {
       setAudioUrls((prev) => [...prev, url]);
       setIsRecording(false);
 
-      // Restart listening after recording is complete
       startListening();
     };
 
@@ -155,9 +238,24 @@ export default function Home() {
           <div>
             <p>Please read the following text:</p>
             <p className="whitespace-pre-line bg-slate-800 p-4 rounded">
-              {readingPrompt}
+              {readingPrompt.split(/\s+/).map((word, index) => (
+                <span
+                  key={index}
+                  className={
+                    matchedWords.has(word.toLowerCase())
+                      ? "text-green-500"
+                      : "text-white"
+                  }
+                >
+                  {word}{" "}
+                </span>
+              ))}
             </p>
             <p>Time left: {timeLeft} seconds</p>
+            <p>Calibration transcript: {calibrationTranscript}</p>
+            <p>
+              Words matched: {matchedWords.size} / {requiredWords.length}
+            </p>
           </div>
         )}
         {isListening && (
