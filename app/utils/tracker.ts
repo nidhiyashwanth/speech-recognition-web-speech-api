@@ -48,6 +48,7 @@ declare global {
 export class UserActivityTracker {
   private static instance: UserActivityTracker | null = null;
   private static isAuthenticating: boolean = false;
+  private static eventListenersInitialized: boolean = false;
 
   private storageMode: string = "sheet";
   private dbConfig: any = null;
@@ -74,13 +75,7 @@ export class UserActivityTracker {
 
   public async waitForInitialization(): Promise<void> {
     if (this.isInitialized) return;
-
     await this.init();
-
-    // Add event listeners
-    document.addEventListener("click", this.handleClick);
-    window.addEventListener("error", this.handleError);
-    this.trackPageView();
   }
 
   private async init(): Promise<void> {
@@ -88,11 +83,28 @@ export class UserActivityTracker {
 
     await this.loadGoogleIdentityServices();
     await this.initializeGoogleAuth();
+    await this.initEventListeners();
+
+    this.isInitialized = true;
+  }
+
+  public cleanup(): void {
+    if (!UserActivityTracker.eventListenersInitialized) return;
+
+    document.removeEventListener("click", this.handleClick);
+    window.removeEventListener("error", this.handleError);
+    UserActivityTracker.eventListenersInitialized = false;
+  }
+
+  private async initEventListeners(): Promise<void> {
+    if (UserActivityTracker.eventListenersInitialized) return;
+
+    document.addEventListener("click", this.handleClick);
+    window.addEventListener("error", this.handleError);
 
     // Track navigation events
     if (typeof window !== "undefined") {
       window.addEventListener("popstate", () => this.trackPageView());
-
       const pushState = history.pushState;
       history.pushState = (...args) => {
         pushState.apply(history, args);
@@ -100,12 +112,8 @@ export class UserActivityTracker {
       };
     }
 
-    this.isInitialized = true;
-  }
-
-  public cleanup(): void {
-    document.removeEventListener("click", this.handleClick);
-    window.removeEventListener("error", this.handleError);
+    this.trackPageView();
+    UserActivityTracker.eventListenersInitialized = true;
   }
 
   private trackPageView(): void {
@@ -170,6 +178,7 @@ export class UserActivityTracker {
   }
 
   private getDeviceInfo(): DeviceInfo {
+    // @ts-ignore
     const userAgentData = navigator.userAgentData;
 
     if (userAgentData) {

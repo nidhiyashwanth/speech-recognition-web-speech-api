@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { useTracker } from "../context/TrackerContext";
 
 interface CalibrationData {
   eyeLookInLeft: number[];
@@ -14,7 +13,6 @@ interface CalibrationData {
 }
 
 const FaceLandmarkPage = () => {
-  const { tracker } = useTracker();
   const [isCalibrating, setIsCalibrating] = useState(true);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [warningCount, setWarningCount] = useState(0);
