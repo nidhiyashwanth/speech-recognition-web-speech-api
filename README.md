@@ -1,36 +1,136 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Activity and Error Tracking System
 
-## Getting Started
+A comprehensive tracking system that monitors user interactions, page views, and errors in Next.js applications, with data storage in Google Sheets.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### 1. User Activity Tracking
+
+- Click events across all pages
+- Page view tracking
+- Navigation tracking (including browser history changes)
+- Device and browser information
+- User location data
+- Timestamp for all events
+
+### 2. Error Tracking
+
+- Runtime errors
+- Unhandled promise rejections
+- Console errors
+- Detailed error information including:
+  - Stack traces
+  - Line numbers
+  - File sources
+  - Error messages
+
+### 3. Data Storage
+
+- Google Sheets integration
+- Automatic sheet headers creation
+- Structured data storage with columns for:
+  - Timestamp
+  - Page URL
+  - User ID
+  - User Name
+  - Location
+  - Device OS
+  - Browser
+  - Error Details
+
+## Setup Instructions
+
+1. Create a Google Cloud Project and enable Google Sheets API
+
+2. Get required credentials:
+
+   ```env
+   NEXT_PUBLIC_GOOGLE_SHEET_ID=your_sheet_id
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_client_id
+   NEXT_PUBLIC_GOOGLE_API_KEY=your_api_key
+   ```
+
+3. Wrap your application with TrackerProvider:
+
+   ```tsx
+   import { TrackerProvider } from "./context/TrackerContext";
+
+   function App({ children }) {
+     return <TrackerProvider>{children}</TrackerProvider>;
+   }
+   ```
+
+4. Use the tracker in components:
+
+   ```tsx
+   import { useTracker } from "../context/TrackerContext";
+
+   function YourComponent() {
+     const { tracker } = useTracker();
+     // Your component code
+   }
+   ```
+
+## How It Works
+
+### Activity Tracking
+
+The system automatically tracks:
+
+- Page loads and navigation
+- Click events with element details
+- User session information
+- Device and browser metadata
+
+### Error Tracking
+
+Captures errors through:
+
+- Global error event listener
+- Unhandled promise rejection handler
+- Console.error interceptor
+
+### Authentication
+
+- Uses Google Identity Services for authentication
+- Implements token caching to prevent multiple sign-in prompts
+- Handles token refresh automatically
+
+## Data Structure
+
+Each tracked event is stored with:
+
+```typescript
+{
+    timestamp: string;
+    page: string;
+    userId: string;
+    userName: string;
+    location: string;
+    deviceInfo: {
+    os: string;
+    mobile?: boolean;
+    userAgent?: string;
+    };
+    browserInfo: {
+        name: string;
+        version: string;
+    };
+    eventType: "click" | "pageview" | "error";
+    additionalData?: any;
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Best Practices
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Initialize the tracker at the application root level
+2. Clean up event listeners when components unmount
+3. Handle authentication state properly
+4. Monitor sheet size and implement data rotation if needed
+5. Respect user privacy and comply with data protection regulations
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Limitations
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Requires Google Sheets API access
+- Needs user consent for Google authentication
+- Sheet size limitations based on Google Sheets quotas
