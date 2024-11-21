@@ -20,4 +20,24 @@ interface Window {
       };
     };
   };
+  google: {
+    accounts: {
+      oauth2: {
+        initTokenClient: (config: any) => any;
+      };
+    };
+  };
+}
+
+interface ErrorEventInit {
+  error?: Error;
+  message?: string;
+  filename?: string;
+  lineno?: number;
+  colno?: number;
+}
+
+interface PromiseRejectionEvent extends Event {
+  reason?: any;
+  promise: Promise<any>;
 }

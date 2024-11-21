@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { UserActivityTracker } from "@/app/utils/tracker";
 import { errorTracker } from "../utils/errorTracker";
+import { locationService } from "@/app/utils/locationService";
 
 interface TrackerContextType {
   tracker: UserActivityTracker | null;
@@ -18,6 +19,8 @@ export function TrackerProvider({ children }: { children: React.ReactNode }) {
 
     const initTracker = async () => {
       try {
+        await locationService.requestPermission();
+        
         const newTracker = new UserActivityTracker("sheet", null, {
           sheetId: process.env.NEXT_PUBLIC_GOOGLE_SHEET_ID!,
           clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!,

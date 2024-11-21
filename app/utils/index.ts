@@ -1,1 +1,2 @@
-export * from './tracker'; 
+export * from './tracker';
+export { errorTracker } from './errorTracker'; 

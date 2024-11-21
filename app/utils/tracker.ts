@@ -1,3 +1,5 @@
+import { locationService } from "./locationService";
+
 interface UserInfo {
   id: string;
   name: string;
@@ -58,6 +60,8 @@ export class UserActivityTracker {
   private isInitialized: boolean = false;
   private boundHandleClick!: (event: MouseEvent) => void;
   private authPromise: Promise<void> | null = null;
+  private lastEventTime: number = 0;
+  private readonly EVENT_THROTTLE = 1000; // 1 second minimum between events
 
   constructor(storageMode: string, dbConfig: any, sheetConfig: TrackerConfig) {
     if (UserActivityTracker.instance) {
@@ -172,9 +176,22 @@ export class UserActivityTracker {
     return { id: "user123", name: "John Doe" };
   }
 
-  private getUserLocation(): string {
-    // Implement location retrieval logic
-    return "New York, USA";
+  private async getUserLocation(): Promise<string> {
+    try {
+      const location = await locationService.getCurrentLocation();
+      if (location) {
+        if (
+          location.city === "Unknown City" &&
+          location.country === "Unknown Country"
+        ) {
+          return `Location: (${location.latitude}, ${location.longitude})`;
+        }
+        return `${location.city}, ${location.country}`;
+      }
+    } catch (error) {
+      console.log("Location fetch failed silently");
+    }
+    return "Location unavailable";
   }
 
   private getDeviceInfo(): DeviceInfo {
@@ -239,11 +256,28 @@ export class UserActivityTracker {
     };
   }
 
-  private storeData(data: any): void {
-    if (this.storageMode === "database") {
-      this.storeInDatabase(data);
-    } else if (this.storageMode === "sheet") {
-      this.storeInSheet(data);
+  private async storeData(data: any): Promise<void> {
+    // Throttle events
+    const now = Date.now();
+    if (now - this.lastEventTime < this.EVENT_THROTTLE) {
+      return;
+    }
+    this.lastEventTime = now;
+
+    try {
+      const location = await this.getUserLocation();
+      const enrichedData = {
+        ...data,
+        location,
+      };
+
+      if (this.storageMode === "database") {
+        this.storeInDatabase(enrichedData);
+      } else if (this.storageMode === "sheet") {
+        await this.storeInSheet(enrichedData);
+      }
+    } catch (error) {
+      console.error("Error in storeData:", error);
     }
   }
 
@@ -307,6 +341,12 @@ export class UserActivityTracker {
         browserInfo.version || ""
       }`.trim();
 
+      // Format location - ensure it's a string
+      const locationString =
+        typeof data.location === "string"
+          ? data.location
+          : "Location unavailable";
+
       const errorString = data.error
         ? `${data.error.type || "Unknown"}: ${data.error.message} (${
             data.error.url
@@ -331,7 +371,7 @@ export class UserActivityTracker {
                 data.page || "",
                 data.user?.id || "",
                 data.user?.name || "",
-                data.location || "",
+                locationString, // Use the formatted location string
                 deviceString,
                 browserString,
                 errorString,
